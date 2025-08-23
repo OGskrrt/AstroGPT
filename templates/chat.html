@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AstroGPT - Your Space AI Assistant</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap');
+    
+    :root {
+      --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      --space-gradient: linear-gradient(180deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      --glow-blue: #64ffda;
+      --glow-purple: #bb86fc;
+      --text-primary: #e8eaed;
+      --text-secondary: #9aa0a6;
+      --surface: rgba(255, 255, 255, 0.05);
+      --surface-hover: rgba(255, 255, 255, 0.1);
+      --error-color: #ff6b6b;
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:'Inter',system-ui,sans-serif;
+      background:var(--space-gradient);
+      color:var(--text-primary);
+      min-height:100vh;overflow-x:hidden;position:relative;
+    }
+    .stars{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1}
+    .star{position:absolute;background:#fff;border-radius:50%;animation:twinkle 4s ease-in-out infinite alternate}
+    .star:nth-child(odd){animation-delay:0s}
+    .star:nth-child(even){animation-delay:2s}
+    @keyframes twinkle{0%{opacity:.3;transform:scale(1)}100%{opacity:1;transform:scale(1.2)}}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+    @keyframes glow{0%,100%{box-shadow:0 0 20px var(--glow-blue)}50%{box-shadow:0 0 30px var(--glow-purple)}}
+
+    .container{max-width:1100px;margin:0 auto;padding:20px;position:relative;z-index:1}
+    .header{text-align:center;margin-bottom:24px;animation:float 6s ease-in-out infinite}
+    .logo{
+      font-family:'Orbitron',monospace;font-size:3.25rem;font-weight:900;
+      background:linear-gradient(45deg,var(--glow-blue),var(--glow-purple),#ff6b6b);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      margin-bottom:6px;text-shadow:0 0 30px rgba(100,255,218,.3)
+    }
+    .subtitle{font-size:1.05rem;color:var(--text-secondary);font-weight:300;margin-bottom:6px}
+    .status{display:inline-flex;align-items:center;gap:8px;background:var(--surface);padding:8px 14px;border-radius:25px;font-size:.9rem;backdrop-filter:blur(10px);border:1px solid rgba(100,255,218,.2)}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--glow-blue);animation:glow 2s ease-in-out infinite}
+    .status.error .status-dot{background:var(--error-color);animation:none}
+
+    .chat-container{
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));
+      backdrop-filter: blur(20px);
+      border-radius:20px;border:1px solid rgba(255,255,255,.1);
+      box-shadow:0 20px 40px rgba(0,0,0,.3);overflow:hidden;margin-bottom:14px
+    }
+    .chat{
+      height:65vh; min-height:480px;
+      overflow-y:auto;padding:22px 22px 12px;scroll-behavior:smooth
+    }
+    .chat::-webkit-scrollbar{width:8px}
+    .chat::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}
+    .chat::-webkit-scrollbar-thumb{background:var(--glow-blue);border-radius:4px}
+
+    .msg{margin:14px 0;display:flex;gap:10px;animation:slideIn .45s ease-out}
+    .msg.user{justify-content:flex-end}
+    .msg.bot{justify-content:flex-start}
+    .msg.error{justify-content:center}
+    @keyframes slideIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+    .avatar{
+      width:34px;height:34px;border-radius:50%;
+      background:radial-gradient(circle at 30% 30%, #1ee7c4, #462a84);
+      display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto;
+      border:1px solid rgba(255,255,255,.15);box-shadow:0 0 12px rgba(100,255,218,.2)
+    }
+    .avatar.user{background:radial-gradient(circle at 30% 30%, #5a6dee, #1c2541)}
+    .bubble{
+      max-width:75%;padding:12px 16px;border-radius:16px;word-wrap:break-word;position:relative;backdrop-filter:blur(10px);white-space:pre-wrap;
+      border:1px solid rgba(255,255,255,.08)
+    }
+    .meta{margin-top:6px;font-size:.75rem;color:var(--text-secondary)}
+    .user .bubble{background:var(--primary-gradient);color:#fff;margin-left:auto;box-shadow:0 4px 15px rgba(102,126,234,.3)}
+    .bot .bubble{background:rgba(255,255,255,.08);color:var(--text-primary);border:1px solid rgba(100,255,218,.2);box-shadow:0 4px 15px rgba(100,255,218,.1)}
+    .error .bubble{background:rgba(255,107,107,.1);color:var(--error-color);border:1px solid rgba(255,107,107,.3);max-width:90%;text-align:center}
+
+    .bubble .tools{
+      display:flex;gap:8px;margin-top:8px;opacity:.7
+    }
+    .tool-btn{
+      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+      padding:4px 8px;border-radius:10px;font-size:.75rem;cursor:pointer
+    }
+    .tool-btn:hover{background:rgba(255,255,255,.1)}
+
+    .empty-state{text-align:center;color:var(--text-secondary);padding:40px 20px}
+    .empty-state .icon{font-size:4rem;margin-bottom:16px;animation:float 4s ease-in-out infinite}
+
+    .input-container{
+      background:var(--surface);backdrop-filter:blur(20px);
+      border-radius:16px;border:1px solid rgba(255,255,255,.1);padding:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.2);position:sticky;bottom:10px
+    }
+    .input-form{display:flex;gap:12px;align-items:center}
+    .message-input{
+      flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+      border-radius:12px;padding:12px 16px;color:var(--text-primary);font-size:16px;transition:all .3s ease;backdrop-filter:blur(10px)
+    }
+    .message-input:focus{outline:none;border-color:var(--glow-blue);box-shadow:0 0 20px rgba(100,255,218,.25)}
+    .message-input::placeholder{color:var(--text-secondary)}
+    .btn{
+      background:var(--primary-gradient);border:none;border-radius:12px;padding:12px 18px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s ease;position:relative;overflow:hidden
+    }
+    .btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 25px rgba(102,126,234,.4)}
+    .btn:active{transform:translateY(0)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn-secondary{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)}
+    .btn-secondary:hover:not(:disabled){background:rgba(255,255,255,.15);box-shadow:0 5px 15px rgba(255,255,255,.1)}
+
+    .footer{text-align:center;margin-top:10px;color:var(--text-secondary);font-size:.9rem;display:flex;align-items:center;justify-content:center;gap:10px}
+    .tech-badge{display:inline-flex;align-items:center;gap:6px;background:var(--surface);padding:4px 12px;border-radius:15px;font-size:.8rem;border:1px solid rgba(100,255,218,.2)}
+
+    @media (max-width: 768px){
+      .container{padding:14px}
+      .logo{font-size:2.2rem}
+      .chat{height:60vh;min-height:360px}
+      .input-form{flex-direction:column;gap:10px}
+      .btn{width:100%}
+      .bubble{max-width:90%}
+    }
+
+    .typing{display:none;align-items:center;gap:8px;color:var(--text-secondary);font-style:italic;padding:10px 16px}
+    .typing-dots{display:flex;gap:4px}
+    .typing-dot{width:8px;height:8px;border-radius:50%;background:var(--glow-blue);animation:typingAnimation 1.4s ease-in-out infinite}
+    .typing-dot:nth-child(1){animation-delay:-.32s}
+    .typing-dot:nth-child(2){animation-delay:-.16s}
+    .typing-dot:nth-child(3){animation-delay:0}
+    @keyframes typingAnimation{0%,80%,100%{transform:scale(0);opacity:.5}40%{transform:scale(1);opacity:1}}
+  </style>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+
+  <div class="container">
+    <div class="header">
+      <div class="logo">AstroGPT</div>
+      <div class="subtitle">Your AI-powered space exploration companion</div>
+      <div class="status" id="status">
+        <div class="status-dot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat" id="chat">
+        <div class="empty-state">
+          <div class="icon">🌌</div>
+          <h3>Welcome to AstroGPT!</h3>
+          <p>Ask me anything about space, planets, stars, and the universe. I'm here to guide your cosmic journey!</p>
+        </div>
+      </div>
+      <div class="typing" id="typing">
+        <span>🚀 AstroGPT is thinking</span>
+        <div class="typing-dots">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-container">
+      <form class="input-form" id="chatForm">
+        <input type="text" class="message-input" id="messageInput"
+          placeholder="Ask me about space... (e.g., Tell me about Mars exploration)" autocomplete="off" autofocus />
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn" id="sendBtn"><span>Send</span></button>
+          <button type="button" class="btn btn-secondary" id="clearBtn"><span>Clear</span></button>
+        </div>
+      </form>
+    </div>
+
+    <div class="footer">
+      <div class="tech-badge"><span>⚡</span><span>RAG Powered</span></div>
+      <div class="tech-badge"><span>🤖</span><span>AI Assistant</span></div>
+      <div class="tech-badge"><span>🔬</span><span>Space Knowledge</span></div>
+    </div>
+  </div>
+
+  <script>
+    // --- Background stars
+    function createStars(){
+      const starsContainer=document.getElementById('stars');
+      const starCount=120;
+      for(let i=0;i<starCount;i++){
+        const star=document.createElement('div');
+        star.className='star';
+        star.style.left=Math.random()*100+'%';
+        star.style.top=Math.random()*100+'%';
+        const s=(Math.random()*2)+1;
+        star.style.width=s+'px'; star.style.height=s+'px';
+        star.style.animationDuration=(Math.random()*3+2)+'s';
+        starsContainer.appendChild(star);
+      }
+    }
+
+    // --- Minimal safe markdown rendering
+    function escapeHtml(str){
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function renderMarkdown(md){
+      let html = escapeHtml(md);
+
+      // code blocks ``` ```
+      html = html.replace(/```([\s\S]*?)```/g,(m,p1)=>'<pre style="margin:.5rem 0;padding:.75rem;border-radius:10px;background:rgba(0,0,0,.35);overflow:auto"><code>'+p1.replace(/\n$/,'')+'</code></pre>');
+      // inline code
+      html = html.replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.12);padding:2px 6px;border-radius:6px;">$1</code>');
+      // bold / italic
+      html = html.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+      html = html.replace(/\*([^*]+)\*/g,'<em>$1</em>');
+      // links (http/https)
+      html = html.replace(/(https?:\/\/[^\s)]+)(?![^<]*>)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+      // simple line breaks
+      html = html.replace(/\n/g,'<br/>');
+      return html;
+    }
+
+    // --- State
+    let chatHistory=[];
+    let isConnected=false;
+
+    // --- Connection check
+    async function checkConnection(){
+      try{
+        const response = await fetch('/health',{method:'GET', cache: 'no-store'});
+        isConnected = response.ok;
+        updateStatus(isConnected);
+      }catch(_){
+        isConnected=false; updateStatus(false);
+      }
+    }
+    function updateStatus(connected){
+      const status=document.getElementById('status');
+      const statusText=document.getElementById('statusText');
+      if(connected){
+        status.classList.remove('error');
+        statusText.textContent='Online and ready · LLaMA 3.1 (via Ollama)';
+      }else{
+        status.classList.add('error');
+        statusText.textContent='Connection error';
+      }
+    }
+
+    // --- UI helpers
+    function timestamp(){
+      const d=new Date();
+      return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    }
+    function addMessage(content,type='bot'){
+      const chat=document.getElementById('chat');
+      const empty=chat.querySelector('.empty-state'); if(empty) empty.remove();
+
+      const row=document.createElement('div'); row.className=`msg ${type}`;
+      const avatar=document.createElement('div'); avatar.className=`avatar ${type==='user'?'user':'bot'}`;
+      avatar.textContent = type==='user' ? '🧑' : '🤖';
+
+      const bubbleWrap=document.createElement('div'); bubbleWrap.style.maxWidth='100%';
+
+      const bubble=document.createElement('div'); bubble.className='bubble';
+      if(type==='bot'){ bubble.innerHTML=renderMarkdown(content); }
+      else{ bubble.textContent=content; }
+
+      const meta=document.createElement('div'); meta.className='meta';
+      meta.textContent = timestamp();
+
+      // tools (copy)
+      const tools=document.createElement('div'); tools.className='tools';
+      const copyBtn=document.createElement('button'); copyBtn.className='tool-btn'; copyBtn.type='button';
+      copyBtn.textContent='Copy';
+      copyBtn.addEventListener('click', async ()=>{
+        const text = type==='bot' ? content : bubble.textContent;
+        try{ await navigator.clipboard.writeText(text); copyBtn.textContent='Copied!'; setTimeout(()=>copyBtn.textContent='Copy',1200);}catch(_){}
+      });
+      tools.appendChild(copyBtn);
+
+      bubble.appendChild(tools);
+      bubbleWrap.appendChild(bubble);
+      bubbleWrap.appendChild(meta);
+
+      if(type==='user'){
+        row.appendChild(bubbleWrap);
+        row.appendChild(avatar);
+      }else{
+        row.appendChild(avatar);
+        row.appendChild(bubbleWrap);
+      }
+
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+
+      chatHistory.push({content,type});
+    }
+
+    function showTyping(){ document.getElementById('typing').style.display='flex'; }
+    function hideTyping(){ document.getElementById('typing').style.display='none'; }
+
+    function setLoading(loading){
+      const sendBtn=document.getElementById('sendBtn');
+      const messageInput=document.getElementById('messageInput');
+      sendBtn.disabled=loading; messageInput.disabled=loading;
+      if(loading){ sendBtn.querySelector('span').textContent='Sending...'; showTyping(); }
+      else{ sendBtn.querySelector('span').textContent='Send'; hideTyping(); messageInput.focus(); }
+    }
+
+    // --- Send to backend
+    async function sendMessage(message){
+      if(!isConnected){
+        addMessage('❌ Unable to connect to server. Please check if the backend is running.','error');
+        return;
+      }
+      setLoading(true);
+      try{
+        const fd=new FormData(); fd.append('message',message);
+        const response = await fetch('/chat',{ method:'POST', body:fd });
+        if(!response.ok){ throw new Error(`Server error: ${response.status} ${response.statusText}`); }
+
+        // backend returns JSONResponse(reply) where reply is a string
+        const result = await response.json();
+        const botResponse = (typeof result === 'string') ? result : (result.response ?? JSON.stringify(result,null,2));
+
+        addMessage(botResponse,'bot'); // <-- NO more "I received your message"
+      }catch(error){
+        console.error(error);
+        addMessage(`❌ Error: ${error.message}. Please try again or check the server connection.`,'error');
+      }finally{
+        setLoading(false);
+      }
+    }
+
+    // --- Events
+    document.getElementById('chatForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const input=document.getElementById('messageInput');
+      const msg=input.value.trim();
+      if(!msg || !isConnected) return;
+      addMessage(msg,'user');
+      input.value='';
+      await sendMessage(msg);
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', ()=>{
+      const chat=document.getElementById('chat');
+      chat.innerHTML=`
+        <div class="empty-state">
+          <div class="icon">🌌</div>
+          <h3>Welcome to AstroGPT!</h3>
+          <p>Ask me anything about space, planets, stars, and the universe. I'm here to guide your cosmic journey!</p>
+        </div>`;
+      chatHistory=[];
+    });
+
+    // --- Init
+    createStars();
+    checkConnection();
+    document.getElementById('messageInput').focus();
+    setInterval(checkConnection, 30000);
+  </script>
+</body>
+</html>
