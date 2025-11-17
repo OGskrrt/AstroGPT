@@ -27,11 +27,23 @@ HTML_DIR = ROOT_DIR / "templates" / "chat.html"
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-st_model = SentenceTransformer(MODEL_NAME)
-faiss_index = faiss.read_index(os.path.join(FAISS_PATH))
-meta_df = pd.read_parquet(os.path.join(META_PATH))
+# Validate required files exist before loading
+if not FAISS_PATH.exists():
+    raise FileNotFoundError(
+        f"FAISS index not found at {FAISS_PATH}. "
+        f"Please run create_DB.ipynb to generate the vector database."
+    )
+if not META_PATH.exists():
+    raise FileNotFoundError(
+        f"Metadata file not found at {META_PATH}. "
+        f"Please run create_DB.ipynb to generate the metadata."
+    )
 
-logging.info(f"Model, FAISS and metadata loaded.")
+st_model = SentenceTransformer(MODEL_NAME)
+faiss_index = faiss.read_index(str(FAISS_PATH))
+meta_df = pd.read_parquet(str(META_PATH))
+
+logging.info(f"Model, FAISS and metadata loaded successfully.")
 
 OLLAMA_ENDPOINT = "http://localhost:11434"  
 OLLAMA_MODEL = "llama3.1:8b"             
@@ -40,7 +52,7 @@ app = FastAPI(title="Space Cadet")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000", "*"], 
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,23 +79,44 @@ def prepare_augmented_query(contexts: str, user_input: str, persona: str, topic:
     return augmented_query.strip()
 
 def augment_query(user_input: str):
-    #print(user_input)
-
     q_emb = st_model.encode([user_input], normalize_embeddings=True, convert_to_numpy=True).astype("float32")
 
     _, q_index = faiss_index.search(q_emb, 10)
-    
-    retrieved_texts = []
-    for i in q_index[0]:
-        if i == -1:
-            continue
-        retrieved_texts.append(meta_df.iloc[i]["text"])
-    contexts = "\n\n".join(retrieved_texts)
 
-    persona = meta_df.iloc[q_index[0][0]]["persona"]
-    topic = meta_df.iloc[q_index[0][0]]["topic"]
-    subtopic = meta_df.iloc[q_index[0][0]]["subtopic"]
-        
+    # Retrieve texts with proper bounds checking
+    retrieved_texts = []
+    valid_indices = []
+    for i in q_index[0]:
+        if i == -1 or i >= len(meta_df):
+            continue
+        try:
+            retrieved_texts.append(meta_df.iloc[i]["text"])
+            valid_indices.append(i)
+        except (IndexError, KeyError) as e:
+            logging.warning(f"Failed to retrieve text for index {i}: {e}")
+            continue
+
+    # Handle empty results
+    if not retrieved_texts:
+        contexts = "No relevant information found."
+        persona = "a general user"
+        topic = "General Knowledge"
+        subtopic = "Various Topics"
+    else:
+        contexts = "\n\n".join(retrieved_texts)
+
+        # Extract topic/subtopic from most common values across top results
+        # This is more robust than using just the first result
+        topics = [meta_df.iloc[idx]["topic"] for idx in valid_indices[:3] if idx < len(meta_df)]
+        subtopics = [meta_df.iloc[idx]["subtopic"] for idx in valid_indices[:3] if idx < len(meta_df)]
+
+        # Use most common or first available
+        topic = topics[0] if topics else "General Knowledge"
+        subtopic = subtopics[0] if subtopics else "Various Topics"
+
+        # Persona is less critical - use a generic one
+        persona = "a user interested in space and astronomy"
+
     augmented_query = prepare_augmented_query(contexts, user_input, persona, topic, subtopic)
 
     return augmented_query
@@ -96,11 +129,11 @@ def call_ollama_with_prompt(prompt: str) -> str:
         "stream": False
     }
     try:
-        r = requests.post(url, data=json.dumps(payload), timeout=120)
+        r = requests.post(url, json=payload, timeout=120)
         r.raise_for_status()
         data = r.json()
         return (data.get("response") or "").strip() or "No response."
-    
+
     except Exception as e:
         logging.warning(f"Ollama call failed: {e}")
         return "Could not reach the local LLM (Ollama). Is it running?"
@@ -115,11 +148,11 @@ def chat_form(message: str = Form(...)):
     user_text = message.strip()
     if not user_text:
         raise HTTPException(status_code=400, detail="Empty message")
-    
+
     augmented_query = augment_query(user_text)
     reply = call_ollama_with_prompt(augmented_query)
-    
-    return JSONResponse(reply)
+
+    return JSONResponse(content=reply)
 
 from fastapi import Response
 @app.get("/health")
